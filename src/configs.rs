@@ -15,10 +15,6 @@ pub(crate) struct Opts {
     /// Enabled Indexer for Explorer debug level of logs
     #[clap(long)]
     pub debug: bool,
-    // todo fix wording
-    /// Switches indexer to non-strict mode (skips Receipts without parent Transaction hash, puts such block_height into special table)
-    #[clap(long)]
-    pub non_strict_mode: bool,
     // todo
     // /// Store initial data from genesis like Accounts, AccessKeys
     // #[clap(long)]

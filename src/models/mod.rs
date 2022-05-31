@@ -1,20 +1,12 @@
-use bigdecimal::BigDecimal;
 use futures::future::try_join_all;
-use near_indexer_primitives::views::{
-    AccessKeyPermissionView, ExecutionStatusView, StateChangeCauseView,
-};
+use near_indexer_primitives::views::AccessKeyPermissionView;
 
-use futures::try_join;
-use num_traits::{ToPrimitive, Zero};
-use sqlx::{Arguments, Row};
+use sqlx::Arguments;
 
 pub use indexer_accounts::FieldCount;
 
-pub(crate) use serializers::extract_action_type_and_value_from_action_view;
-
 pub(crate) mod access_keys;
 pub(crate) mod accounts;
-mod serializers;
 
 pub trait FieldCount {
     /// Get the number of fields on a struct.
@@ -81,6 +73,7 @@ async fn insert_retry_or_panic<T: MySqlMethods + std::fmt::Debug>(
     Ok(())
 }
 
+// todo it would be great to control how many lines we've updated
 pub(crate) async fn update_retry_or_panic<T: MySqlMethods + std::fmt::Debug>(
     pool: &sqlx::Pool<sqlx::Postgres>,
     query: &str,
@@ -104,7 +97,6 @@ pub(crate) async fn update_retry_or_panic<T: MySqlMethods + std::fmt::Debug>(
             item.add_to_args(&mut args);
 
             match sqlx::query_with(query, args).execute(pool).await {
-                // TODO we update exactly 1 line here. we should panic otherwise
                 Ok(_) => break,
                 Err(async_error) => {
                     eprintln!(
@@ -214,44 +206,11 @@ pub(crate) trait PrintEnum {
     fn print(&self) -> &str;
 }
 
-impl PrintEnum for ExecutionStatusView {
-    fn print(&self) -> &str {
-        match self {
-            ExecutionStatusView::Unknown => "UNKNOWN",
-            ExecutionStatusView::Failure(_) => "FAILURE",
-            ExecutionStatusView::SuccessValue(_) => "SUCCESS_VALUE",
-            ExecutionStatusView::SuccessReceiptId(_) => "SUCCESS_RECEIPT_ID",
-        }
-    }
-}
-
 impl PrintEnum for AccessKeyPermissionView {
     fn print(&self) -> &str {
         match self {
             AccessKeyPermissionView::FunctionCall { .. } => "FUNCTION_CALL",
             AccessKeyPermissionView::FullAccess => "FULL_ACCESS",
-        }
-    }
-}
-
-impl PrintEnum for StateChangeCauseView {
-    fn print(&self) -> &str {
-        match self {
-            StateChangeCauseView::NotWritableToDisk => {
-                panic!("Unexpected variant {:?} received", self)
-            }
-            StateChangeCauseView::InitialState => panic!("Unexpected variant {:?} received", self),
-            StateChangeCauseView::TransactionProcessing { .. } => "TRANSACTION_PROCESSING",
-            StateChangeCauseView::ActionReceiptProcessingStarted { .. } => {
-                "ACTION_RECEIPT_PROCESSING_STARTED"
-            }
-            StateChangeCauseView::ActionReceiptGasReward { .. } => "ACTION_RECEIPT_GAS_REWARD",
-            StateChangeCauseView::ReceiptProcessing { .. } => "RECEIPT_PROCESSING",
-            StateChangeCauseView::PostponedReceipt { .. } => "POSTPONED_RECEIPT",
-            StateChangeCauseView::UpdatedDelayedReceipts => "UPDATED_DELAYED_RECEIPTS",
-            StateChangeCauseView::ValidatorAccountsUpdate => "VALIDATOR_ACCOUNTS_UPDATE",
-            StateChangeCauseView::Migration => "MIGRATION",
-            StateChangeCauseView::Resharding => "RESHARDING",
         }
     }
 }

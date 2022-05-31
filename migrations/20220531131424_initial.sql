@@ -17,9 +17,3 @@ CREATE TABLE access_keys
     permission_kind          text           NOT NULL,
     PRIMARY KEY (public_key, account_id)
 );
-
-CREATE TABLE _blocks_to_rerun2
-(
-    block_height numeric(20, 0) NOT NULL,
-    PRIMARY KEY (block_height)
-);

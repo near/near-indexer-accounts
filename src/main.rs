@@ -1,10 +1,8 @@
 // TODO cleanup imports in all the files in the end
-use cached::SizedCache;
 use clap::Parser;
 use dotenv::dotenv;
 use futures::{try_join, StreamExt};
 use std::env;
-use tokio::sync::Mutex;
 use tracing_subscriber::EnvFilter;
 
 use crate::configs::Opts;
@@ -54,9 +52,7 @@ async fn main() -> anyhow::Result<()> {
     let stream = near_lake_framework::streamer(config);
 
     let mut handlers = tokio_stream::wrappers::ReceiverStream::new(stream)
-        .map(|streamer_message| {
-            handle_streamer_message(streamer_message, &pool, !opts.non_strict_mode)
-        })
+        .map(|streamer_message| handle_streamer_message(streamer_message, &pool))
         .buffer_unordered(1usize);
 
     // let mut time_now = std::time::Instant::now();
@@ -82,7 +78,6 @@ async fn main() -> anyhow::Result<()> {
 async fn handle_streamer_message(
     streamer_message: near_indexer_primitives::StreamerMessage,
     pool: &sqlx::Pool<sqlx::Postgres>,
-    strict_mode: bool,
 ) -> anyhow::Result<u64> {
     // if streamer_message.block.header.height % 100 == 0 {
     eprintln!(
@@ -98,7 +93,10 @@ async fn handle_streamer_message(
         streamer_message.block.header.height,
     );
 
-    try_join!(accounts_future)?;
+    let access_keys_future =
+        db_adapters::access_keys::store_access_keys(pool, &streamer_message.shards);
+
+    try_join!(accounts_future, access_keys_future)?;
     Ok(streamer_message.block.header.height)
 }
 

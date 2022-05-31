@@ -1,9 +1,6 @@
-use std::str::FromStr;
-
-use bigdecimal::BigDecimal;
 use sqlx::Arguments;
 
-use crate::models::FieldCount;
+use crate::models::{FieldCount, PrintEnum};
 
 #[derive(Debug, sqlx::FromRow, FieldCount)]
 pub struct AccessKey {
@@ -12,6 +9,37 @@ pub struct AccessKey {
     pub created_by_receipt_id: Option<String>,
     pub deleted_by_receipt_id: Option<String>,
     pub permission_kind: String,
+}
+
+impl AccessKey {
+    pub fn access_key_to_delete(
+        public_key: String,
+        account_id: &near_indexer_primitives::types::AccountId,
+        deleted_by_receipt_id: &near_indexer_primitives::CryptoHash,
+    ) -> Self {
+        Self {
+            public_key,
+            account_id: account_id.to_string(),
+            created_by_receipt_id: None,
+            deleted_by_receipt_id: Some(deleted_by_receipt_id.to_string()),
+            permission_kind: "".to_string(),
+        }
+    }
+
+    pub fn from_action_view(
+        public_key: &near_crypto::PublicKey,
+        account_id: &near_indexer_primitives::types::AccountId,
+        access_key: &near_indexer_primitives::views::AccessKeyView,
+        create_by_receipt_id: &near_indexer_primitives::CryptoHash,
+    ) -> Self {
+        Self {
+            public_key: public_key.to_string(),
+            account_id: account_id.to_string(),
+            created_by_receipt_id: Some(create_by_receipt_id.to_string()),
+            deleted_by_receipt_id: None,
+            permission_kind: access_key.permission.print().to_string(),
+        }
+    }
 }
 
 impl crate::models::MySqlMethods for AccessKey {
