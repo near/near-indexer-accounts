@@ -79,13 +79,13 @@ async fn handle_streamer_message(
     streamer_message: near_indexer_primitives::StreamerMessage,
     pool: &sqlx::Pool<sqlx::Postgres>,
 ) -> anyhow::Result<u64> {
-    // if streamer_message.block.header.height % 100 == 0 {
-    eprintln!(
-        "{} / shards {}",
-        streamer_message.block.header.height,
-        streamer_message.shards.len()
-    );
-    // }
+    if streamer_message.block.header.height % 100 == 0 {
+        eprintln!(
+            "{} / shards {}",
+            streamer_message.block.header.height,
+            streamer_message.shards.len()
+        );
+    }
 
     let accounts_future = db_adapters::accounts::store_accounts(
         pool,
