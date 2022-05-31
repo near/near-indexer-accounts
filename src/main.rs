@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
         s3_config: None,
         s3_bucket_name: opts.s3_bucket_name.clone(),
         s3_region_name: opts.s3_region_name.clone(),
-        start_block_height: 9820210, //opts.start_block_height.unwrap(),
+        start_block_height: opts.start_block_height.unwrap(),
     };
     init_tracing();
 
