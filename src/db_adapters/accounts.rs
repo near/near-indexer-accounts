@@ -55,7 +55,7 @@ async fn store_accounts_for_chunk(
                             let query = r"SELECT * FROM accounts
                                                 WHERE account_id = $1
                                                     AND created_by_block_height < $2
-                                                    AND (deleted_by_block_height IS NULL OR deleted_by_block_height > $2";
+                                                    AND (deleted_by_block_height IS NULL OR deleted_by_block_height > $2)";
                             let previously_created = models::select_retry_or_panic(
                                 pool,
                                 query,
