@@ -93,8 +93,11 @@ async fn handle_streamer_message(
         streamer_message.block.header.height,
     );
 
-    let access_keys_future =
-        db_adapters::access_keys::store_access_keys(pool, &streamer_message.shards);
+    let access_keys_future = db_adapters::access_keys::store_access_keys(
+        pool,
+        &streamer_message.shards,
+        streamer_message.block.header.height,
+    );
 
     try_join!(accounts_future, access_keys_future)?;
     Ok(streamer_message.block.header.height)

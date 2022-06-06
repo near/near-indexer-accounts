@@ -8,10 +8,11 @@ use crate::models;
 pub(crate) async fn store_access_keys(
     pool: &sqlx::Pool<sqlx::Postgres>,
     shards: &[near_indexer_primitives::IndexerShard],
+    block_height: near_indexer_primitives::types::BlockHeight,
 ) -> anyhow::Result<()> {
-    let futures = shards
-        .iter()
-        .map(|shard| store_access_keys_for_chunk(pool, &shard.receipt_execution_outcomes));
+    let futures = shards.iter().map(|shard| {
+        store_access_keys_for_chunk(pool, &shard.receipt_execution_outcomes, block_height)
+    });
 
     try_join_all(futures).await.map(|_| ())
 }
@@ -19,6 +20,7 @@ pub(crate) async fn store_access_keys(
 async fn store_access_keys_for_chunk(
     pool: &sqlx::Pool<sqlx::Postgres>,
     outcomes: &[near_indexer_primitives::IndexerExecutionOutcomeWithReceipt],
+    block_height: near_indexer_primitives::types::BlockHeight,
 ) -> anyhow::Result<()> {
     if outcomes.is_empty() {
         return Ok(());
@@ -50,6 +52,7 @@ async fn store_access_keys_for_chunk(
                                 "".to_string(),
                                 &receipt.receiver_id,
                                 &receipt.receipt_id,
+                                block_height,
                             ),
                         );
                     }
@@ -62,6 +65,7 @@ async fn store_access_keys_for_chunk(
                             &receipt.receiver_id,
                             access_key,
                             &receipt.receipt_id,
+                            block_height,
                         ));
                     }
                     near_indexer_primitives::views::ActionView::DeleteKey { public_key } => {
@@ -70,6 +74,7 @@ async fn store_access_keys_for_chunk(
                                 public_key.to_string(),
                                 &receipt.receiver_id,
                                 &receipt.receipt_id,
+                                block_height,
                             ),
                         );
                     }
@@ -90,6 +95,7 @@ async fn store_access_keys_for_chunk(
                                                 permission: near_indexer_primitives::views::AccessKeyPermissionView::FullAccess
                                             },
                                             &receipt.receipt_id,
+                                            block_height
                                         ),
                                     );
                                 }
@@ -103,25 +109,21 @@ async fn store_access_keys_for_chunk(
     }
 
     let update_access_keys_for_deleted_accounts_future = async {
-        models::update_retry_or_panic(
-            pool,
-            "UPDATE access_keys SET deleted_by_receipt_id = $4\n\
-            WHERE account_id = $2 AND deleted_by_receipt_id IS NULL",
-            &access_keys_from_deleted_accounts,
-            10,
-        )
-        .await
+        let query = r"UPDATE access_keys
+                            SET deleted_by_receipt_id = $4, deleted_by_block_height = $6
+                            WHERE account_id = $2
+                                AND created_by_block_height < $6
+                                AND deleted_by_block_height IS NULL";
+        models::update_retry_or_panic(pool, query, &access_keys_from_deleted_accounts, 10).await
     };
 
     let update_access_keys_future = async {
-        models::update_retry_or_panic(
-            pool,
-            "UPDATE access_keys SET deleted_by_receipt_id = $4\n\
-            WHERE account_id = $2 AND public_key = $1",
-            &deleted_access_keys,
-            10,
-        )
-        .await
+        let query = r"UPDATE access_keys
+                            SET deleted_by_receipt_id = $4, deleted_by_block_height = $6
+                            WHERE account_id = $2 AND public_key = $1
+                                AND created_by_block_height < $6
+                                AND deleted_by_block_height IS NULL";
+        models::update_retry_or_panic(pool, query, &deleted_access_keys, 10).await
     };
 
     let add_access_keys_future =

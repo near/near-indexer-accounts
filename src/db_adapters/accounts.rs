@@ -52,8 +52,17 @@ async fn store_accounts_for_chunk(
                     }
                     near_indexer_primitives::views::ActionView::Transfer { .. } => {
                         if receipt.receiver_id.len() == 64usize {
-                            let previously_created = models::select_retry_or_panic(pool,
-                            "SELECT * FROM accounts WHERE account_id = $1 AND deleted_by_receipt_id IS NULL", &[receipt.receiver_id.to_string()], 10).await?;
+                            let query = r"SELECT * FROM accounts
+                                                WHERE account_id = $1
+                                                    AND created_by_block_height < $2
+                                                    AND (deleted_by_block_height IS NULL OR deleted_by_block_height > $2";
+                            let previously_created = models::select_retry_or_panic(
+                                pool,
+                                query,
+                                &[receipt.receiver_id.to_string(), block_height.to_string()],
+                                10,
+                            )
+                            .await?;
                             if previously_created.is_empty() {
                                 accounts_to_create.push(
                                     models::accounts::Account::new_from_receipt(
@@ -84,14 +93,12 @@ async fn store_accounts_for_chunk(
         async { models::chunked_insert(pool, &accounts_to_create, 10).await };
 
     let update_accounts_future = async {
-        models::update_retry_or_panic(
-            pool,
-            "UPDATE accounts SET deleted_by_receipt_id = $3, deleted_by_block_height = $5\n\
-            WHERE account_id = $1 AND deleted_by_receipt_id IS NULL",
-            &accounts_to_update,
-            10,
-        )
-        .await
+        let query = r"UPDATE accounts
+                            SET deleted_by_receipt_id = $3, deleted_by_block_height = $5
+                            WHERE account_id = $1
+                                AND created_by_block_height < $5
+                                AND deleted_by_block_height IS NULL";
+        models::update_retry_or_panic(pool, query, &accounts_to_update, 10).await
     };
 
     try_join!(create_accounts_future, update_accounts_future)?;
