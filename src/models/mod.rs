@@ -1,7 +1,7 @@
 use futures::future::try_join_all;
 use near_indexer_primitives::views::AccessKeyPermissionView;
-
 use sqlx::Arguments;
+use std::fmt::Write;
 
 pub use indexer_accounts::FieldCount;
 
@@ -173,9 +173,11 @@ pub(crate) fn create_placeholders(
     let mut res = create_placeholder(&mut start_num, fields_count)?;
     items_count -= 1;
     while items_count > 0 {
-        let placeholder = create_placeholder(&mut start_num, fields_count)?;
-        res += ", ";
-        res += &placeholder;
+        write!(
+            res,
+            ", {}",
+            create_placeholder(&mut start_num, fields_count)?
+        )?;
         items_count -= 1;
     }
 
@@ -194,7 +196,7 @@ pub(crate) fn create_placeholder(
     *start_num += 1;
     fields_count -= 1;
     while fields_count > 0 {
-        item += &format!(", ${}", start_num);
+        write!(item, ", ${}", start_num)?;
         *start_num += 1;
         fields_count -= 1;
     }
